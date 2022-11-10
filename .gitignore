@@ -1,0 +1,11 @@
+# Cargo specific.
+/target
+Cargo.lock
+/web/pkg
+
+# Editors and IDEs.
+.idea
+.vscode
+
+# Misc.
+.DS_Store

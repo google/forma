@@ -1,0 +1,49 @@
+# Copyright 2022 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     https://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[package]
+name = "forma-render"
+version = "0.1.0"
+edition = "2021"
+authors = [
+    "Dragoș Tiselice <dtiselice@google.com>",
+    "Pierre Labatut <plabatut@google.com>",
+    "Rémi Doreau <remi.d45@gmail.com>",
+]
+license = "Apache-2.0"
+description = "An efficient vector-graphics renderer"
+categories = ["rendering"]
+keywords = ["2d", "rendering", "parallel", "vector-graphics"]
+repository = "https://github.com/google/forma"
+readme = "README.md"
+
+[dependencies]
+anyhow.workspace = true
+bytemuck = { workspace = true, optional = true }
+crossbeam-utils = "0.8.12"
+crumsort = "0.1.0"
+etagere = "0.2.7"
+ramhorns = { version = "0.12", optional = true }
+rayon = "1.5.3"
+rustc-hash = "1.1.0"
+wgpu = { workspace = true, optional = true }
+
+[dev-dependencies]
+half = "2.1.0"
+pollster.workspace = true
+rand.workspace = true
+
+[features]
+default = ["gpu"]
+gpu = ["bytemuck", "ramhorns", "wgpu"]

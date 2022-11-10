@@ -1,0 +1,296 @@
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Forma test report</title>
+    <style>
+        body {
+            font-family: "Segoe UI", Arial, sans-serif;
+        }
+
+        .overview {
+            padding: 0 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .testcase {
+            padding: 0 1rem;
+            margin-bottom: 1rem;
+            border: 1px solid transparent;
+            border-radius: 0.25rem;
+        }
+
+        .status_KO {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+
+        .status_OK {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        h3 {
+            margin: 10px 0;
+        }
+
+        pre {
+            margin-top: 0;
+        }
+
+        .note {
+            height: 2em;
+        }
+
+        .superpose {
+            position: relative;
+            width: 256px;
+            height: 256px;
+            border: 2px solid #000;
+            margin: 4px;
+            background-color: #ffffff;
+        }
+
+        .cpu_gpu_pair {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+        }
+
+        .diff {
+            display: flex;
+            flex-direction: row
+        }
+
+        .viewer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            image-rendering: pixelated;
+            cursor: crosshair;
+        }
+
+        .hide_overlay .overlay_canvas {
+            visibility: hidden;
+        }
+
+        .hide_background .background_canvas {
+            visibility: hidden;
+        }
+
+        .superpose canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        img {
+            display: none;
+        }
+
+        kbd {
+            padding: 0.2rem 0.4rem;
+            font-size: 87.5%;
+            color: #fff;
+            background-color: #212529;
+            border-radius: 0.2rem;
+        }
+
+        .shortcuts {
+            margin: 1em;
+            text-align: right;
+        }
+
+        .shortcuts div {
+            display: inline-block;
+        }
+
+        .overview {
+            clear: both;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div>
+        <h1 style="float:left">Forma test report</h1>
+        <div class="shortcuts">
+            <div><kbd>b</kbd> toggle background draw checker |</div>
+            <div><kbd>d</kbd> toggle diff overlay.</div>
+        </div>
+    </div>
+    <div class="overview">
+        <div class="template"><a class="status_{status}" href="#{name}">{name}</a></div>
+    </div>
+    <div id="root" class="hide_overlay">
+        <div class="template">
+            <div class="testcase status_{status}" id="{name}">
+                <h3>{name}</h3>
+                <pre>{message}</pre>
+                <div class="cpu_gpu_pair">
+                    <div class="diff">
+                        <div class="viewer cpu_actual">
+                            CPU Actual
+                            <div class="superpose">
+                                <canvas width="256" height="256" class="background_canvas"></canvas>
+                                <canvas width="256" height="256" class="image_canvas"></canvas>
+                                <canvas width="256" height="256" class="overlay_canvas"></canvas>
+                            </div>
+                            <img src="{cpu_actual}"/>
+                            <pre class="note"></pre>
+                        </div>
+                        <div class="viewer" class="cpu_expected">
+                            CPU Expected
+                            <div class="superpose">
+                                <canvas width="256" height="256" class="background_canvas"></canvas>
+                                <canvas width="256" height="256" class="image_canvas"></canvas>
+                                <canvas width="256" height="256" class="overlay_canvas"></canvas>
+                            </div>
+                            <img src="{cpu_expected}"/>
+                            <pre class="note"></pre>
+                        </div>
+                    </div>
+                    <div class="diff">
+                        <div class="viewer" class="gpu_actual">
+                            GPU Actual
+                            <div class="superpose">
+                                <canvas width="256" height="256" class="background_canvas"></canvas>
+                                <canvas width="256" height="256" class="image_canvas"></canvas>
+                                <canvas width="256" height="256" class="overlay_canvas"></canvas>
+                            </div>
+                            <img src="{gpu_actual}"/>
+                            <pre class="note"></pre>
+                        </div>
+                        <div class="viewer" class="gpu_expected">
+                            GPU Expected
+                            <div class="superpose">
+                                <canvas width="256" height="256" class="background_canvas"></canvas>
+                                <canvas width="256" height="256" class="image_canvas"></canvas>
+                                <canvas width="256" height="256" class="overlay_canvas"></canvas>
+                            </div>
+                            <img src="{gpu_expected}"/>
+                            <pre class="note"></pre>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Scale factor expressed as a bit shift.
+        const shift = 2;
+
+        let entries = [/* generated */];
+
+        // Get issues first and the sort by name.
+        entries.sort((a, b) => a.name.localeCompare(b.name));
+        entries.sort((a, b) => a.status.localeCompare(b.status));
+
+        // Instanciate templates.
+        for (const template of Array.from(document.getElementsByClassName('template'))) {
+            const parentNode = template.parentNode;
+            parentNode.removeChild(template);
+            for (const entry of entries) {
+                const elem = document.createElement("div");
+                var html = template.innerHTML
+                for (const property in entry) html = html.replaceAll(`{${property}}`, entry[property]);
+                elem.innerHTML = html;
+                parentNode.appendChild(elem);
+            }
+            console.log(template);
+        }
+
+        // Show color picker on hover.
+        document.addEventListener('mousemove', e => {
+            const get_row = canvas => canvas.closest(".testcase");
+            const get_viewer = canvas => canvas.closest(".viewer");
+            if (e.path[0].tagName !== "CANVAS") return;
+            const row = get_row(e.path[0]);
+            for (const canvas of Array.from(document.getElementsByClassName("image_canvas"))) {
+                const note = get_viewer(canvas).getElementsByClassName("note")[0];
+                if (get_row(canvas).isSameNode(row)) {
+                    try {
+                        const data = canvas.getContext("2d").getImageData(e.offsetX, e.offsetY, 1, 1).data;
+                        const rgba = v => data[v].toString().padStart(3, " ")
+                        note.innerHTML = `(x: ${e.offsetX >> shift}, y: ${e.offsetY >> shift})\nr: ${rgba(0)}, g: ${rgba(1)}, b: ${rgba(2)}, a: ${rgba(3)}`;
+                    } catch (error) {
+                        console.warn(error);
+                    }
+                } else {
+                    note.innerHTML = "";
+                }
+            }
+
+        });
+
+        // Toggle debug view on key press.
+        document.addEventListener('keypress', e => {
+            console.log(e);
+            let elem = document.getElementById("root");
+            if (e.key == "b") elem.classList.toggle("hide_background");
+            if (e.key == "d") elem.classList.toggle("hide_overlay");
+        });
+
+        function drawChecker(canvas) {
+            const rows = 8, cols = 8;
+            const w = canvas.clientWidth, h = canvas.clientHeight;
+            const ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = "LightGray";
+            for (let r = 0; r < rows; r++) {
+                for (let c = r % 2; c < cols; c += 2) {
+                    ctx.beginPath();
+                    ctx.rect(w * r / rows, h * c / cols, w / rows, h / cols);
+                    ctx.fill();
+                }
+            }
+        }
+
+        // Load the impage into canvas for inspection, and compute diffs.
+        window.onload = function () {
+            for (const elem of Array.from(document.getElementsByClassName("viewer"))) {
+                const img = elem.getElementsByTagName("img")[0];
+                if (img.getAttribute("src") === "null") continue;
+                const context = elem.getElementsByClassName("image_canvas")[0].getContext("2d");
+                context.webkitImageSmoothingEnabled = false;
+                context.mozImageSmoothingEnabled = false;
+                context.msImageSmoothingEnabled = false;
+                context.imageSmoothingEnabled = false;
+                context.drawImage(img, 0, 0, 256, 256);
+            }
+
+            for (const canvas of Array.from(document.getElementsByClassName("background_canvas"))) {
+                drawChecker(canvas);
+            }
+
+            for (const diff of Array.from(document.getElementsByClassName("diff"))) {
+                const canvases = diff.getElementsByClassName("image_canvas");
+                const w = canvases[0].clientWidth, h = canvases[0].clientHeight;
+                let id0 = canvases[0].getContext("2d").getImageData(0, 0, w, h);
+                let id1 = canvases[1].getContext("2d").getImageData(0, 0, w, h);
+                let d0 = id0.data, d1 = id1.data;
+                let colorize = (sum) => {
+                    if (sum > 8) return [255, 60, 0, 128];
+                    else if (sum > 4) return [255, 140, 0, 128];
+                    return [0, 0, 0, 0];
+                }
+                let delta = (i) => Math.abs(d0[i] - d1[i]);
+                for (let i = w * h * 4 - 4; i >= 0; i -= 4) {
+                    const sum = delta(i) + delta(i + 1) + delta(i + 2) + delta(i + 3);
+                    [d0[i], d0[i + 1], d0[i + 2], d0[i + 3]] = colorize(sum);
+                }
+                for (const canvas of Array.from(diff.getElementsByClassName("overlay_canvas"))) {
+                    canvas.getContext("2d").putImageData(id0, 0, 0);
+                }
+            }
+        };
+
+    </script>
+</body>
+
+</html>
