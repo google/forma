@@ -33,10 +33,10 @@ pub struct Texture {
 impl Texture {
     pub fn new() -> Self {
         Self {
-            width: 1000,
-            height: 1000,
+            width: 800,
+            height: 800,
             time: Duration::ZERO,
-            image: load_image(&PathBuf::from("assets/image/butterfly.jpg")),
+            image: load_image(&PathBuf::from("assets/images/juice.png")),
         }
     }
 
