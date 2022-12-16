@@ -2,7 +2,7 @@
 
 [![crates.io badge](https://img.shields.io/crates/v/forma-render?style=for-the-badge)](https://crates.io/crates/forma-render) [![](https://dcbadge.vercel.app/api/server/CYtcmqgh)](https://discord.gg/CYtcmqgh)
 
-A (thouroughly) parallelized **experimental** Rust vector-graphics renderer with both a software (CPU) and hardware (GPU)
+A (thoroughly) parallelized **experimental** Rust vector-graphics renderer with both a software (CPU) and hardware (GPU)
 back-end having the following goals, in this order:
 
   1. **Portability**; supporting Fuchsia, Linux, macOS, Windows, Android & iOS.
