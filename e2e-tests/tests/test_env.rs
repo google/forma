@@ -60,11 +60,9 @@ fn cpu_render(composition: &mut Composition, width: usize, height: usize) -> Rgb
 
 fn gpu_render(composition: &mut Composition, width: usize, height: usize) -> RgbaImage {
     let instance = wgpu::Instance::new(wgpu::Backends::PRIMARY);
-    let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-        power_preference: wgpu::PowerPreference::HighPerformance,
-        ..Default::default()
-    }))
-    .expect("failed to find an appropriate adapter");
+    let adapter =
+        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
+            .expect("failed to find an appropriate adapter");
 
     let (device, queue) = pollster::block_on(adapter.request_device(
         &wgpu::DeviceDescriptor {
@@ -72,7 +70,7 @@ fn gpu_render(composition: &mut Composition, width: usize, height: usize) -> Rgb
             features: Default::default(),
             limits: wgpu::Limits {
                 max_texture_dimension_2d: 8192,
-                max_storage_buffer_binding_size: 1 << 30,
+                max_storage_buffer_binding_size: 1 << 27,
                 ..wgpu::Limits::downlevel_defaults()
             },
         },
