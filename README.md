@@ -76,9 +76,15 @@ We implemented a fail-fast per-tile optimizer that tries to skip the painting st
 
 </details>
 
-| Animation as it appears on the screen |                             Updated tiles only                             |
-|:-------------------------------------:|:--------------------------------------------------------------------------:|
-| ![](assets/images/juice.png?raw=true) | ![juice animation updated tiles](assets/images/juice-updated.png?raw=true) |
+|   Animation as it appears on the screen    |                               Updated tiles only                               |
+|:------------------------------------------:|:------------------------------------------------------------------------------:|
+| ![](assets/images/spaceship.webp?raw=true) | ![juice animation updated tiles](assets/images/spaceship-damage.webp?raw=true) |
+
+You can run the demo above with:
+
+```sh
+cargo run --release -p demo -- spaceship
+```
 
 ## Similar Projects
 
