@@ -6,7 +6,7 @@ A (thouroughly) parallelized **experimental** Rust vector-graphics renderer with
 back-end having the following goals, in this order:
 
   1. **Portability**; supporting Fuchsia, Linux, macOS, Windows, Android & iOS.
-  2. **Performance**; making use of compute-focused pipeline that is highly parallelized both at the intruction-level and the thread-level.
+  2. **Performance**; making use of compute-focused pipeline that is highly parallelized both at the instruction-level and the thread-level.
   3. **Simplicity**; implementing an easy-to-understand 4-stage pipeline.
   4. **Size**; minimizing the number of dependencies and focusing on vector-graphics only.
 
