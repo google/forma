@@ -26,7 +26,7 @@ description = "An efficient vector-graphics renderer"
 categories = ["rendering"]
 keywords = ["2d", "rendering", "parallel", "vector-graphics"]
 repository = "https://github.com/google/forma"
-readme = "README.md"
+readme = "../README.md"
 
 [dependencies]
 anyhow.workspace = true
