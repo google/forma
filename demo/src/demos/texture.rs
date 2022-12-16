@@ -36,7 +36,7 @@ impl Texture {
             width: 1000,
             height: 1000,
             time: Duration::ZERO,
-            image: load_image(&PathBuf::from("assets/image/butterfly.jpg")),
+            image: load_image(&PathBuf::from("assets/images/logo.png")),
         }
     }
 
