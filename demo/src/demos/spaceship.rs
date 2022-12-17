@@ -32,7 +32,7 @@ fn clamp2d(point: Vector2<f32>, min: f32, max: f32) -> Vector2<f32> {
 
 enum ActorType {
     Player,
-    Ennemy,
+    Enemy,
 }
 
 /// Element displayed on screen and interacting.
@@ -51,7 +51,7 @@ pub struct Actor {
 }
 
 impl Actor {
-    fn create_ennemy(rng: &mut StdRng, composition: &mut Composition) -> Actor {
+    fn create_enemy(rng: &mut StdRng, composition: &mut Composition) -> Actor {
         let radius = rng.gen_range(5.0f32..10.0).powf(2.0);
         let x = rng.gen_range(0.0..GAME_SIZE);
         let angle = rng.gen_range(-0.2..0.2f32);
@@ -73,7 +73,7 @@ impl Actor {
                 }),
             });
         Actor {
-            kind: ActorType::Ennemy,
+            kind: ActorType::Enemy,
             pos: Vector2::new(x, -0.25 * GAME_SIZE),
             friction: 0.0,
             max_speed: f32::INFINITY,
@@ -124,7 +124,7 @@ impl Actor {
         }
 
         if a.overlaps_with(b) {
-            // Eslatic bounce between the two objects.
+            // Elastic bounce between the two objects.
             // Unit vector of the axis between the two centers.
             let r_pos_u = (b.pos - a.pos).normalize();
             // Speed of each actor projected on the collision axis.
@@ -134,7 +134,7 @@ impl Actor {
             if u2 > u1 {
                 return;
             }
-            // Masses are proportinal to the cube of the radius.
+            // Masses are proportional to the cube of the radius.
             let (m1, m2) = (a.radius.powf(3.0), b.radius.powf(3.0));
             // Speeds after collision on the collision axis.
             let v1 = ((m1 - m2) * u1 + 2.0 * m2 * u2) / (m1 + m2);
@@ -210,7 +210,7 @@ impl Actor {
 }
 
 /// Monotonic function counting ennemies created since the start of the game.
-fn ennemy_count(game_time: std::time::Duration) -> i32 {
+fn enemy_count(game_time: std::time::Duration) -> i32 {
     let t = game_time.as_secs_f32();
     (0.0005 * t * t + 2.0 * t) as i32
 }
@@ -242,10 +242,10 @@ impl Spaceship {
         keyboard: &Keyboard,
         composition: &mut Composition,
     ) {
-        // Create ennemies that poped since the last frame.
-        let new_ennemies = ennemy_count(self.time + delta_t) - ennemy_count(self.time);
-        for _ in 0..new_ennemies {
-            let actor = Actor::create_ennemy(&mut self.rng, composition);
+        // Create enemies that popped since the last frame.
+        let new_enemies = enemy_count(self.time + delta_t) - enemy_count(self.time);
+        for _ in 0..new_enemies {
+            let actor = Actor::create_enemy(&mut self.rng, composition);
             self.actors.push(actor);
         }
 
@@ -263,7 +263,7 @@ impl Spaceship {
     }
 
     fn update_composition_and_cleanup_actors(&mut self, composition: &mut Composition) {
-        // Update the compoisition.
+        // Update the composition.
         for (order, a) in self.actors.iter_mut().enumerate() {
             if a.alive {
                 let order = Order::new(order as u32).unwrap();
