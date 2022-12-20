@@ -50,8 +50,8 @@ fn integers_between(a: f32, b: f32) -> u32 {
 /// ```text
 /// (0.9, 1.9) -> (1.1, 0.1)
 /// ```
-/// The x-coordinates `0.9` and `1.1` are on adjacent "city blocks", which contributes `1` to the
-/// to the segment length (even though the distance between them is only `0.2`). Similarly, the
+/// The x-coordinates `0.9` and `1.1` are on adjacent "city blocks", which contributes `1` to
+/// the segment length (even though the distance between them is only `0.2`). Similarly, the
 /// y-coordinates `1.9` and `0.1` are on adjacent "city blocks", which also contributes `1` to the
 /// segment length (even though the distance between them is `1.8`, almost `2`!).  This gives a total
 /// segment length of `3`:
