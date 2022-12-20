@@ -218,7 +218,7 @@ impl Composition {
     ///
     /// assert_ne!(id0, id1);
     ///
-    /// // Old ID canot be use any longer.
+    /// // Old ID cannot be used any longer.
     /// assert_eq!(composition.get_order_if_stored(id0), None);
     ///
     /// // Since is has not been removed, the geometry is still accessible by ID.
