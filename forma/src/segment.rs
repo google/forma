@@ -15,16 +15,28 @@
 use std::{cell::Cell, num::NonZeroU64};
 
 use rayon::prelude::*;
+use rustc_hash::FxHashMap;
 
 use crate::{
     composition::InnerLayer,
     consts,
     math::AffineTransform,
     utils::{ExtendTuple10, ExtendTuple3},
-    Path,
+    Layer, Order, Path,
 };
 
 const MIN_LEN: usize = 1_024;
+
+fn transform_point(point: (f32, f32), transform: &AffineTransform) -> (f32, f32) {
+    (
+        transform
+            .ux
+            .mul_add(point.0, transform.vx.mul_add(point.1, transform.tx)),
+        transform
+            .uy
+            .mul_add(point.0, transform.vy.mul_add(point.1, transform.ty)),
+    )
+}
 
 fn integers_between(a: f32, b: f32) -> u32 {
     let min = a.min(b);
@@ -77,6 +89,11 @@ fn prefix_sum(vals: &mut [u32]) -> u32 {
 pub struct GeomId(NonZeroU64);
 
 impl GeomId {
+    #[cfg(test)]
+    pub fn new(val: u64) -> Self {
+        Self(NonZeroU64::new(val + 1).unwrap())
+    }
+
     #[cfg(test)]
     pub fn get(self) -> u64 {
         self.0.get() - 1
@@ -226,10 +243,17 @@ impl SegmentBuffer {
         }
     }
 
-    pub fn fill_cpu_view<F>(mut self, layers: F) -> SegmentBufferView
-    where
-        F: Fn(GeomId) -> Option<InnerLayer> + Send + Sync,
-    {
+    pub fn fill_cpu_view(
+        mut self,
+        width: usize,
+        height: usize,
+        layers: &FxHashMap<Order, Layer>,
+        geom_id_to_order: &FxHashMap<GeomId, Option<Order>>,
+    ) -> SegmentBufferView {
+        let width = width as f32;
+        let height = height as f32;
+        let empty_line = Default::default();
+
         let ps_layers = self.view.x.par_windows(2).with_min_len(MIN_LEN).zip_eq(
             self.view.y.par_windows(2).with_min_len(MIN_LEN).zip_eq(
                 self.view.ids[..self.view.ids.len().checked_sub(1).unwrap_or_default()]
@@ -238,8 +262,6 @@ impl SegmentBuffer {
             ),
         );
         let par_iter = ps_layers.map(|(xs, (ys, &id))| {
-            let empty_line = Default::default();
-
             let p0x = xs[0];
             let p0y = ys[0];
             let p1x = xs[1];
@@ -251,7 +273,14 @@ impl SegmentBuffer {
                 return empty_line;
             }
 
-            let layer = match id.and_then(&layers) {
+            let layer = match id.and_then(|id| {
+                geom_id_to_order
+                    .get(&id)
+                    .copied()
+                    .flatten()
+                    .and_then(|order| layers.get(&order))
+                    .map(|layer| &layer.inner)
+            }) {
                 Some(layer) => layer,
                 None => return empty_line,
             };
@@ -268,17 +297,6 @@ impl SegmentBuffer {
                 None => return empty_line,
             };
 
-            fn transform_point(point: (f32, f32), transform: &AffineTransform) -> (f32, f32) {
-                (
-                    transform
-                        .ux
-                        .mul_add(point.0, transform.vx.mul_add(point.1, transform.tx)),
-                    transform
-                        .uy
-                        .mul_add(point.0, transform.vy.mul_add(point.1, transform.ty)),
-                )
-            }
-
             let transform = layer
                 .affine_transform
                 .as_ref()
@@ -293,7 +311,12 @@ impl SegmentBuffer {
                 (p0x, p0y, p1x, p1y)
             };
 
-            if p0y == p1y {
+            let skip = p0y == p1y
+                || p0y < 0.0 && p1y < 0.0
+                || p0y > height && p1y > height
+                || p0x > width && p1x > width;
+
+            if skip {
                 return empty_line;
             }
 
@@ -356,23 +379,25 @@ impl SegmentBuffer {
         self.view
     }
 
-    pub fn fill_gpu_view<F>(mut self, layers: F) -> SegmentBufferView
-    where
-        F: Fn(GeomId) -> Option<InnerLayer> + Send + Sync,
-    {
-        fn transform_point(point: (f32, f32), transform: &AffineTransform) -> (f32, f32) {
-            (
-                transform
-                    .ux
-                    .mul_add(point.0, transform.vx.mul_add(point.1, transform.tx)),
-                transform
-                    .uy
-                    .mul_add(point.0, transform.vy.mul_add(point.1, transform.ty)),
-            )
-        }
+    pub fn fill_gpu_view(
+        mut self,
+        width: usize,
+        height: usize,
+        layers: &FxHashMap<Order, Layer>,
+        geom_id_to_order: &FxHashMap<GeomId, Option<Order>>,
+    ) -> SegmentBufferView {
+        let width = width as f32;
+        let height = height as f32;
 
         if !self.view.ids.is_empty() {
-            let point = match self.view.ids[0].and_then(&layers) {
+            let point = match self.view.ids[0].and_then(|id| {
+                geom_id_to_order
+                    .get(&id)
+                    .copied()
+                    .flatten()
+                    .and_then(|order| layers.get(&order))
+                    .map(|layer| &layer.inner)
+            }) {
                 None
                 | Some(
                     InnerLayer {
@@ -402,11 +427,20 @@ impl SegmentBuffer {
                 .with_min_len(MIN_LEN)
                 .zip_eq(self.view.ids.par_windows(2).with_min_len(MIN_LEN)),
         );
+
+        const NONE: u32 = u32::MAX;
         let par_iter = ps_layers.map(|(xs, (ys, ids))| {
-            const NONE: u32 = u32::MAX;
             let p0x = xs[0];
             let p0y = ys[0];
-            let (p1x, p1y) = match ids[0].or(ids[1]).and_then(&layers) {
+
+            let (p1x, p1y) = match ids[0].or(ids[1]).and_then(|id| {
+                geom_id_to_order
+                    .get(&id)
+                    .copied()
+                    .flatten()
+                    .and_then(|order| layers.get(&order))
+                    .map(|layer| &layer.inner)
+            }) {
                 None
                 | Some(
                     InnerLayer {
@@ -424,22 +458,31 @@ impl SegmentBuffer {
                 }) => transform_point((xs[1], ys[1]), &transform.0),
             };
 
-            let layer = match ids[0].and_then(&layers) {
+            let empty_line = (0, [p1x, p1y], NONE);
+
+            let layer = match ids[0].and_then(|id| {
+                geom_id_to_order
+                    .get(&id)
+                    .copied()
+                    .flatten()
+                    .and_then(|order| layers.get(&order))
+                    .map(|layer| &layer.inner)
+            }) {
                 Some(layer) => layer,
                 // Points at then end of segment chain have to be transformed for the compute shader.
-                None => return (0, [p1x, p1y], NONE),
+                None => return empty_line,
             };
 
             if let InnerLayer {
                 is_enabled: false, ..
             } = layer
             {
-                return (0, [p1x, p1y], NONE);
+                return empty_line;
             }
 
             let order = match layer.order {
                 Some(order) => order.as_u32(),
-                None => return (0, [p1x, p1y], NONE),
+                None => return empty_line,
             };
 
             let transform = layer
@@ -453,10 +496,16 @@ impl SegmentBuffer {
                 (p0x, p0y)
             };
 
-            if p0y == p1y {
-                return (0, [p1x, p1y], NONE);
+            let skip = p0y == p1y
+                || p0y < 0.0 && p1y < 0.0
+                || p0y > height && p1y > height
+                || p0x > width && p1x > width;
+
+            if skip {
+                return empty_line;
             }
-            let length = integers_between(p0x, p1x) + integers_between(p0y, p1y) + 1;
+
+            let length = manhattan_segment_length(p0x, p1x, p0y, p1y);
 
             (length, [p1x, p1y], order)
         });

@@ -169,7 +169,7 @@ mod tests {
     use super::*;
 
     use crate::{
-        composition::InnerLayer,
+        composition::Composition,
         consts::cpu::{TILE_HEIGHT, TILE_WIDTH},
         math::Point,
         segment::{GeomId, SegmentBuffer},
@@ -177,14 +177,16 @@ mod tests {
     };
 
     fn segments(p0: Point, p1: Point) -> Vec<PixelSegment<TILE_WIDTH, TILE_HEIGHT>> {
-        let mut builder = SegmentBuffer::default();
-        builder.push(GeomId::default(), [p0, p1]);
-        let lines = builder.fill_cpu_view(|_| {
-            Some(InnerLayer {
-                order: Some(Order::new(0).unwrap()),
-                ..Default::default()
-            })
-        });
+        let mut segment_buffer = SegmentBuffer::default();
+        let mut composition = Composition::new();
+
+        composition.get_mut_or_insert_default(Order::new(0).unwrap());
+
+        segment_buffer.push(GeomId::default(), [p0, p1]);
+
+        let (layers, geom_id_to_order) = composition.layers_for_segments();
+
+        let lines = segment_buffer.fill_cpu_view(1000, 1000, layers, &geom_id_to_order);
 
         let mut rasterizer = Rasterizer::default();
         rasterizer.rasterize(&lines);
@@ -481,14 +483,14 @@ mod tests {
     fn tile_octant_5() {
         assert_eq!(
             tiles(&segments(
-                Point::new(-(TILE_WIDTH as f32), -(TILE_HEIGHT as f32)),
-                Point::new(-(TILE_WIDTH as f32) - 3.0, -(TILE_HEIGHT as f32) - 2.0),
+                Point::new(-(TILE_WIDTH as f32), TILE_HEIGHT as f32),
+                Point::new(-(TILE_WIDTH as f32) - 3.0, TILE_HEIGHT as f32 - 2.0),
             )),
             [
-                (-1, -1, TILE_WIDTH as u8 - 1, TILE_HEIGHT as u8 - 1),
-                (-1, -1, TILE_WIDTH as u8 - 2, TILE_HEIGHT as u8 - 1),
-                (-1, -1, TILE_WIDTH as u8 - 2, TILE_HEIGHT as u8 - 2),
-                (-1, -1, TILE_WIDTH as u8 - 3, TILE_HEIGHT as u8 - 2),
+                (-1, 0, TILE_WIDTH as u8 - 1, TILE_HEIGHT as u8 - 1),
+                (-1, 0, TILE_WIDTH as u8 - 2, TILE_HEIGHT as u8 - 1),
+                (-1, 0, TILE_WIDTH as u8 - 2, TILE_HEIGHT as u8 - 2),
+                (-1, 0, TILE_WIDTH as u8 - 3, TILE_HEIGHT as u8 - 2),
             ],
         );
     }
@@ -497,14 +499,14 @@ mod tests {
     fn tile_octant_6() {
         assert_eq!(
             tiles(&segments(
-                Point::new(-(TILE_WIDTH as f32), -(TILE_HEIGHT as f32)),
-                Point::new(-(TILE_WIDTH as f32) - 2.0, -(TILE_HEIGHT as f32) - 3.0),
+                Point::new(-(TILE_WIDTH as f32), TILE_HEIGHT as f32),
+                Point::new(-(TILE_WIDTH as f32) - 2.0, TILE_HEIGHT as f32 - 3.0),
             )),
             [
-                (-1, -1, TILE_WIDTH as u8 - 1, TILE_HEIGHT as u8 - 1),
-                (-1, -1, TILE_WIDTH as u8 - 1, TILE_HEIGHT as u8 - 2),
-                (-1, -1, TILE_WIDTH as u8 - 2, TILE_HEIGHT as u8 - 2),
-                (-1, -1, TILE_WIDTH as u8 - 2, TILE_HEIGHT as u8 - 3),
+                (-1, 0, TILE_WIDTH as u8 - 1, TILE_HEIGHT as u8 - 1),
+                (-1, 0, TILE_WIDTH as u8 - 1, TILE_HEIGHT as u8 - 2),
+                (-1, 0, TILE_WIDTH as u8 - 2, TILE_HEIGHT as u8 - 2),
+                (-1, 0, TILE_WIDTH as u8 - 2, TILE_HEIGHT as u8 - 3),
             ],
         );
     }
@@ -513,14 +515,14 @@ mod tests {
     fn tile_octant_7() {
         assert_eq!(
             tiles(&segments(
-                Point::new(TILE_WIDTH as f32, -(TILE_HEIGHT as f32)),
-                Point::new(TILE_WIDTH as f32 + 2.0, -(TILE_HEIGHT as f32) - 3.0),
+                Point::new(TILE_WIDTH as f32, TILE_HEIGHT as f32),
+                Point::new(TILE_WIDTH as f32 + 2.0, (TILE_HEIGHT as f32) - 3.0),
             )),
             [
-                (1, -1, 0, TILE_HEIGHT as u8 - 1),
-                (1, -1, 0, TILE_HEIGHT as u8 - 2),
-                (1, -1, 1, TILE_HEIGHT as u8 - 2),
-                (1, -1, 1, TILE_HEIGHT as u8 - 3),
+                (1, 0, 0, TILE_HEIGHT as u8 - 1),
+                (1, 0, 0, TILE_HEIGHT as u8 - 2),
+                (1, 0, 1, TILE_HEIGHT as u8 - 2),
+                (1, 0, 1, TILE_HEIGHT as u8 - 3),
             ],
         );
     }
@@ -529,14 +531,14 @@ mod tests {
     fn tile_octant_8() {
         assert_eq!(
             tiles(&segments(
-                Point::new(TILE_WIDTH as f32, -(TILE_HEIGHT as f32)),
-                Point::new(TILE_WIDTH as f32 + 3.0, -(TILE_HEIGHT as f32) - 2.0),
+                Point::new(TILE_WIDTH as f32, TILE_HEIGHT as f32),
+                Point::new(TILE_WIDTH as f32 + 3.0, (TILE_HEIGHT as f32) - 2.0),
             )),
             [
-                (1, -1, 0, TILE_HEIGHT as u8 - 1),
-                (1, -1, 1, TILE_HEIGHT as u8 - 1),
-                (1, -1, 1, TILE_HEIGHT as u8 - 2),
-                (1, -1, 2, TILE_HEIGHT as u8 - 2),
+                (1, 0, 0, TILE_HEIGHT as u8 - 1),
+                (1, 0, 1, TILE_HEIGHT as u8 - 1),
+                (1, 0, 1, TILE_HEIGHT as u8 - 2),
+                (1, 0, 2, TILE_HEIGHT as u8 - 2),
             ],
         );
     }
