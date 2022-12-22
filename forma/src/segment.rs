@@ -38,6 +38,19 @@ fn transform_point(point: (f32, f32), transform: &AffineTransform) -> (f32, f32)
     )
 }
 
+fn skip_line(p0x: f32, p0y: f32, p1x: f32, p1y: f32, width: f32, height: f32) -> bool {
+    // Vertical lines do no create coverage information.
+    let is_vertical = p0y == p1y;
+
+    // We can skip everything to the top, right, and bottom, but not left. Lines to the left might
+    // produce coverage that affects the render target.
+    let is_over = p0y > height && p1y > height;
+    let is_to_the_right = p0x > width && p1x > width;
+    let is_under = p0y < 0.0 && p1y < 0.0;
+
+    is_vertical || is_over || is_to_the_right || is_under
+}
+
 fn integers_between(a: f32, b: f32) -> u32 {
     let min = a.min(b);
     let max = a.max(b);
@@ -311,12 +324,7 @@ impl SegmentBuffer {
                 (p0x, p0y, p1x, p1y)
             };
 
-            let skip = p0y == p1y
-                || p0y < 0.0 && p1y < 0.0
-                || p0y > height && p1y > height
-                || p0x > width && p1x > width;
-
-            if skip {
+            if skip_line(p0x, p0y, p1x, p1y, width, height) {
                 return empty_line;
             }
 
@@ -496,12 +504,7 @@ impl SegmentBuffer {
                 (p0x, p0y)
             };
 
-            let skip = p0y == p1y
-                || p0y < 0.0 && p1y < 0.0
-                || p0y > height && p1y > height
-                || p0x > width && p1x > width;
-
-            if skip {
+            if skip_line(p0x, p0y, p1x, p1y, width, height) {
                 return empty_line;
             }
 
