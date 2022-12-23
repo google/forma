@@ -1,0 +1,10 @@
+{
+  "source": "index.html",
+  "scripts": {
+    "start": "parcel",
+    "build": "wasm-pack build --target web && parcel build"
+  },
+  "devDependencies": {
+    "parcel": "^2.8.2"
+  }
+}
