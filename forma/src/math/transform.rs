@@ -130,6 +130,24 @@ impl fmt::Display for GeomPresTransformError {
 
 impl Error for GeomPresTransformError {}
 
+/// An affine transform that does not scale up.
+///
+/// For less constrained transforms, use [`Path::transform`] instead.
+///
+/// [`Path::transform`]: crate::Path::transform
+///
+/// # Examples
+///
+/// ```
+/// # use forma_render::prelude::*;
+/// let translate_x_1 = [1.0, 0.0, 0.0, 1.0, 1.0, 0.0];
+/// let scale_y_2 = [1.0, 0.0, 0.0, 2.0, 0.0, 0.0];
+/// let flip_scale_x_2 = [-2.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+///
+/// assert!(GeomPresTransform::try_from(AffineTransform::from(translate_x_1)).is_ok());
+/// assert!(GeomPresTransform::try_from(AffineTransform::from(scale_y_2)).is_err());
+/// assert!(GeomPresTransform::try_from(AffineTransform::from(flip_scale_x_2)).is_err());
+/// ```
 #[derive(Default, Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GeomPresTransform(pub(crate) AffineTransform);
 
