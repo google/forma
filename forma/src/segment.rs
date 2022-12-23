@@ -133,6 +133,22 @@ impl Default for GeomId {
     }
 }
 
+struct Layers<'c> {
+    layers: &'c FxHashMap<Order, Layer>,
+    geom_id_to_order: &'c FxHashMap<GeomId, Option<Order>>,
+}
+
+impl Layers<'_> {
+    pub fn get(&self, id: GeomId) -> Option<&InnerLayer> {
+        self.geom_id_to_order
+            .get(&id)
+            .copied()
+            .flatten()
+            .and_then(|order| self.layers.get(&order))
+            .map(|layer| &layer.inner)
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct SegmentBuffer {
     view: SegmentBufferView,
@@ -265,6 +281,11 @@ impl SegmentBuffer {
     ) -> SegmentBufferView {
         let width = width as f32;
         let height = height as f32;
+        let layers = Layers {
+            layers,
+            geom_id_to_order,
+        };
+
         let empty_line = Default::default();
 
         let ps_layers = self.view.x.par_windows(2).with_min_len(MIN_LEN).zip_eq(
@@ -286,14 +307,7 @@ impl SegmentBuffer {
                 return empty_line;
             }
 
-            let layer = match id.and_then(|id| {
-                geom_id_to_order
-                    .get(&id)
-                    .copied()
-                    .flatten()
-                    .and_then(|order| layers.get(&order))
-                    .map(|layer| &layer.inner)
-            }) {
+            let layer = match id.and_then(|id| layers.get(id)) {
                 Some(layer) => layer,
                 None => return empty_line,
             };
@@ -396,16 +410,13 @@ impl SegmentBuffer {
     ) -> SegmentBufferView {
         let width = width as f32;
         let height = height as f32;
+        let layers = Layers {
+            layers,
+            geom_id_to_order,
+        };
 
         if !self.view.ids.is_empty() {
-            let point = match self.view.ids[0].and_then(|id| {
-                geom_id_to_order
-                    .get(&id)
-                    .copied()
-                    .flatten()
-                    .and_then(|order| layers.get(&order))
-                    .map(|layer| &layer.inner)
-            }) {
+            let point = match self.view.ids[0].and_then(|id| layers.get(id)) {
                 None
                 | Some(
                     InnerLayer {
@@ -435,20 +446,11 @@ impl SegmentBuffer {
                 .with_min_len(MIN_LEN)
                 .zip_eq(self.view.ids.par_windows(2).with_min_len(MIN_LEN)),
         );
-
-        const NONE: u32 = u32::MAX;
         let par_iter = ps_layers.map(|(xs, (ys, ids))| {
             let p0x = xs[0];
             let p0y = ys[0];
 
-            let (p1x, p1y) = match ids[0].or(ids[1]).and_then(|id| {
-                geom_id_to_order
-                    .get(&id)
-                    .copied()
-                    .flatten()
-                    .and_then(|order| layers.get(&order))
-                    .map(|layer| &layer.inner)
-            }) {
+            let (p1x, p1y) = match ids[0].or(ids[1]).and_then(|id| layers.get(id)) {
                 None
                 | Some(
                     InnerLayer {
@@ -466,16 +468,9 @@ impl SegmentBuffer {
                 }) => transform_point((xs[1], ys[1]), &transform.0),
             };
 
-            let empty_line = (0, [p1x, p1y], NONE);
+            let empty_line = (0, [p1x, p1y], u32::MAX);
 
-            let layer = match ids[0].and_then(|id| {
-                geom_id_to_order
-                    .get(&id)
-                    .copied()
-                    .flatten()
-                    .and_then(|order| layers.get(&order))
-                    .map(|layer| &layer.inner)
-            }) {
+            let layer = match ids[0].and_then(|id| layers.get(id)) {
                 Some(layer) => layer,
                 // Points at then end of segment chain have to be transformed for the compute shader.
                 None => return empty_line,
