@@ -283,6 +283,8 @@ impl Layer {
 
     /// Sets the layer's transform.
     ///
+    /// For less constrained transforms, use [`Path::transform`] instead.
+    ///
     /// # Examples
     ///
     /// ```
