@@ -44,9 +44,9 @@ fn skip_line(p0x: f32, p0y: f32, p1x: f32, p1y: f32, width: f32, height: f32) ->
 
     // We can skip everything to the top, right, and bottom, but not left. Lines to the left might
     // produce coverage that affects the render target.
-    let is_over = p0y > height && p1y > height;
-    let is_to_the_right = p0x > width && p1x > width;
-    let is_under = p0y < 0.0 && p1y < 0.0;
+    let is_over = p0y >= height && p1y >= height;
+    let is_to_the_right = p0x >= width && p1x >= width;
+    let is_under = p0y <= 0.0 && p1y <= 0.0;
 
     is_vertical || is_over || is_to_the_right || is_under
 }

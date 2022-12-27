@@ -298,7 +298,7 @@ mod tests {
     #[test]
     fn area_cover_octant_5() {
         assert_eq!(
-            areas_and_covers(&segments(Point::new(0.0, 0.0), Point::new(-3.0, -2.0))),
+            areas_and_covers(&segments(Point::new(3.0, 2.0), Point::new(0.0, 0.0))),
             [
                 (-(11 * 16), -11),
                 (-(5 * 8), -5),
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn area_cover_octant_6() {
         assert_eq!(
-            areas_and_covers(&segments(Point::new(0.0, 0.0), Point::new(-2.0, -3.0))),
+            areas_and_covers(&segments(Point::new(2.0, 3.0), Point::new(0.0, 0.0))),
             [
                 (-(16 * 11), -16),
                 (-(8 * 5 + 2 * (8 * 11)), -8),
@@ -324,7 +324,7 @@ mod tests {
     #[test]
     fn area_cover_octant_7() {
         assert_eq!(
-            areas_and_covers(&segments(Point::new(0.0, 0.0), Point::new(2.0, -3.0))),
+            areas_and_covers(&segments(Point::new(0.0, 3.0), Point::new(2.0, 0.0))),
             [
                 (-(16 * 11 + 2 * (16 * 5)), -16),
                 (-(8 * 5), -8),
@@ -337,7 +337,7 @@ mod tests {
     #[test]
     fn area_cover_octant_8() {
         assert_eq!(
-            areas_and_covers(&segments(Point::new(0.0, 0.0), Point::new(3.0, -2.0))),
+            areas_and_covers(&segments(Point::new(0.0, 2.0), Point::new(3.0, 0.0))),
             [
                 (-(11 * 16), -11),
                 (-(5 * 8 + 2 * (5 * 8)), -5),
@@ -390,7 +390,7 @@ mod tests {
     #[test]
     fn area_cover_axis_225() {
         assert_eq!(
-            areas_and_covers(&segments(Point::new(0.0, 0.0), Point::new(-1.0, -1.0))),
+            areas_and_covers(&segments(Point::new(1.0, 1.0), Point::new(0.0, 0.0))),
             [(-(16 * 16), -16)],
         );
     }
@@ -398,7 +398,7 @@ mod tests {
     #[test]
     fn area_cover_axis_270() {
         assert_eq!(
-            areas_and_covers(&segments(Point::new(0.0, 0.0), Point::new(0.0, -1.0))),
+            areas_and_covers(&segments(Point::new(0.0, 1.0), Point::new(0.0, 0.0))),
             [(2 * -(16 * 16), -16)],
         );
     }
@@ -406,7 +406,7 @@ mod tests {
     #[test]
     fn area_cover_axis_315() {
         assert_eq!(
-            areas_and_covers(&segments(Point::new(0.0, 0.0), Point::new(-1.0, -1.0))),
+            areas_and_covers(&segments(Point::new(0.0, 1.0), Point::new(1.0, 0.0))),
             [(-(16 * 16), -16)],
         );
     }
