@@ -338,7 +338,7 @@ mod tests {
         let (layers, geom_id_to_order) = composition.layers_for_segments();
 
         let segment_buffer_view =
-            segment_buffer.fill_gpu_view(1000, 1000, layers, &geom_id_to_order);
+            segment_buffer.fill_gpu_view(usize::MAX, usize::MAX, layers, &geom_id_to_order);
 
         let (actual_segments, _) = run_rasterizer(segment_buffer_view);
         let expected_segments = [
@@ -388,7 +388,7 @@ mod tests {
 
         let gpu_segments = {
             let segment_buffer_view =
-                segment_buffer.fill_gpu_view(1000, 1000, layers, &geom_id_to_order);
+                segment_buffer.fill_gpu_view(usize::MAX, usize::MAX, layers, &geom_id_to_order);
             let (segments, segment_buffer_view) = run_rasterizer(segment_buffer_view);
             segment_buffer = segment_buffer_view.recycle();
 
@@ -397,7 +397,7 @@ mod tests {
 
         let mut cpu_segments = {
             let segment_buffer_view =
-                segment_buffer.fill_cpu_view(1000, 1000, layers, &geom_id_to_order);
+                segment_buffer.fill_cpu_view(usize::MAX, usize::MAX, layers, &geom_id_to_order);
             let mut rasterizer = Rasterizer::<TILE_WIDTH, TILE_HEIGHT>::default();
             rasterizer.rasterize(&segment_buffer_view);
 

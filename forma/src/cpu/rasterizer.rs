@@ -186,7 +186,7 @@ mod tests {
 
         let (layers, geom_id_to_order) = composition.layers_for_segments();
 
-        let lines = segment_buffer.fill_cpu_view(1000, 1000, layers, &geom_id_to_order);
+        let lines = segment_buffer.fill_cpu_view(usize::MAX, usize::MAX, layers, &geom_id_to_order);
 
         let mut rasterizer = Rasterizer::default();
         rasterizer.rasterize(&lines);
