@@ -21,6 +21,7 @@ members = [
     "demo",
     "e2e-tests",
     "forma",
+    "web",
 ]
 resolver = "2"
 

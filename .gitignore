@@ -1,6 +1,12 @@
 # Cargo specific.
 /target
 Cargo.lock
+
+# wasm-pack, npm, Parcel.
+/web/.parcel-cache
+/web/dist
+/web/node_modules
+/web/package-lock.json
 /web/pkg
 
 # Editors and IDEs.
