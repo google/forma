@@ -904,16 +904,18 @@ impl App for Svg {
         for (order, (path, fill_rule, fill, blend_mode)) in self.paths.iter().enumerate() {
             let mut layer = composition.create_layer();
 
-            layer.insert(path).set_props(Props {
-                fill_rule: *fill_rule,
-                func: Func::Draw(Style {
-                    fill: fill.clone(),
-                    blend_mode: *blend_mode,
-                    ..Default::default()
-                }),
-            });
-            layer.set_transform(transform);
-            // .set_transform(transform);
+            layer
+                .insert(path)
+                .set_transform(transform)
+                .set_props(Props {
+                    fill_rule: *fill_rule,
+                    func: Func::Draw(Style {
+                        fill: fill.clone(),
+                        blend_mode: *blend_mode,
+                        ..Default::default()
+                    }),
+                });
+
             composition.insert(Order::new(order as u32).unwrap(), layer);
         }
 
