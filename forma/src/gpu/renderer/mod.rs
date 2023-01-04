@@ -483,14 +483,7 @@ impl Renderer {
         let segment_buffer_view = segment_buffer
             .take()
             .expect("segment_buffer should not be None")
-            .fill_gpu_view(|id| {
-                geom_id_to_order
-                    .get(&id)
-                    .copied()
-                    .flatten()
-                    .and_then(|order| layers.get(&order))
-                    .map(|layer| layer.inner.clone())
-            });
+            .fill_gpu_view(width as usize, height as usize, layers, geom_id_to_order);
 
         self.styling_map.populate(layers);
 

@@ -250,17 +250,14 @@ impl GpuContext for RasterizerContext {
 mod tests {
     use super::*;
 
-    use std::collections::HashMap;
-
     use rand::{distributions::Uniform, prelude::*};
 
     use crate::{
-        composition::InnerLayer,
         consts::gpu::{TILE_HEIGHT, TILE_WIDTH},
         cpu::{PixelSegment, Rasterizer},
         math::Point,
         segment::{GeomId, SegmentBuffer},
-        Order, PathBuilder,
+        Composition, Order, PathBuilder,
     };
 
     fn run_rasterizer(
@@ -332,14 +329,16 @@ mod tests {
             .build();
 
         let mut segment_buffer = SegmentBuffer::default();
+        let mut composition = Composition::new();
+
         segment_buffer.push_path(GeomId::default(), &path);
 
-        let segment_buffer_view = segment_buffer.fill_gpu_view(|_| {
-            Some(InnerLayer {
-                order: Some(Order::new(1).unwrap()),
-                ..Default::default()
-            })
-        });
+        composition.get_mut_or_insert_default(Order::new(1).unwrap());
+
+        let (layers, geom_id_to_order) = composition.layers_for_segments();
+
+        let segment_buffer_view =
+            segment_buffer.fill_gpu_view(usize::MAX, usize::MAX, layers, &geom_id_to_order);
 
         let (actual_segments, _) = run_rasterizer(segment_buffer_view);
         let expected_segments = [
@@ -358,6 +357,7 @@ mod tests {
     #[test]
     fn rasterize_random_quad() {
         let mut segment_buffer = SegmentBuffer::default();
+        let mut composition = Composition::new();
         let mut rng = SmallRng::seed_from_u64(0);
 
         // Using a small range to workaround the precision difference between CPU and GPU
@@ -369,8 +369,6 @@ mod tests {
         };
 
         let mut geom_id = GeomId::default();
-        let mut geom_id_to_order = HashMap::new();
-        let mut order = 0;
 
         for _ in 0..4096 {
             let path = PathBuilder::new()
@@ -380,21 +378,17 @@ mod tests {
                 .line_to(rnd_point())
                 .build();
 
+            composition.get_mut_or_insert_default(Order::new(geom_id.get() as u32).unwrap());
+
             segment_buffer.push_path(geom_id, &path);
-            geom_id_to_order.insert(geom_id, Order::new(order).unwrap());
             geom_id = geom_id.next();
-            order += 1;
         }
 
-        let layers = |geom_id| {
-            Some(InnerLayer {
-                order: geom_id_to_order.get(&geom_id).copied(),
-                ..Default::default()
-            })
-        };
+        let (layers, geom_id_to_order) = composition.layers_for_segments();
 
         let gpu_segments = {
-            let segment_buffer_view = segment_buffer.fill_gpu_view(layers);
+            let segment_buffer_view =
+                segment_buffer.fill_gpu_view(usize::MAX, usize::MAX, layers, &geom_id_to_order);
             let (segments, segment_buffer_view) = run_rasterizer(segment_buffer_view);
             segment_buffer = segment_buffer_view.recycle();
 
@@ -402,7 +396,8 @@ mod tests {
         };
 
         let mut cpu_segments = {
-            let segment_buffer_view = segment_buffer.fill_cpu_view(layers);
+            let segment_buffer_view =
+                segment_buffer.fill_cpu_view(usize::MAX, usize::MAX, layers, &geom_id_to_order);
             let mut rasterizer = Rasterizer::<TILE_WIDTH, TILE_HEIGHT>::default();
             rasterizer.rasterize(&segment_buffer_view);
 

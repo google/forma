@@ -792,16 +792,16 @@ pub fn painter_fill_at_bench(width: usize, height: usize, style: &Style) -> f32x
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     use std::{collections::HashMap, iter};
 
     use crate::{
-        composition::InnerLayer,
         consts::cpu::{TILE_HEIGHT, TILE_WIDTH},
         cpu::{buffer::layout::LinearLayout, Rasterizer, RGBA},
         math::Point,
-        GeomId, Order, SegmentBuffer,
+        Composition, GeomId, Order, SegmentBuffer,
     };
 
     const RED: Color = Color {
@@ -944,20 +944,25 @@ mod tests {
         points: &[(Point, Point)],
         same_layer: bool,
     ) -> Vec<PixelSegment<TILE_WIDTH, TILE_HEIGHT>> {
-        let mut builder = SegmentBuffer::default();
-        let ids = iter::successors(Some(GeomId::default()), |id| Some(id.next()));
+        let mut segment_buffer = SegmentBuffer::default();
+        let mut composition = Composition::new();
 
-        for (&(p0, p1), id) in points.iter().zip(ids) {
-            let id = if same_layer { GeomId::default() } else { id };
-            builder.push(id, [p0, p1]);
+        if same_layer {
+            composition.get_mut_or_insert_default(Order::new(0).unwrap());
+
+            for &(p0, p1) in points.iter() {
+                segment_buffer.push(GeomId::default(), [p0, p1]);
+            }
+        } else {
+            for (id, &(p0, p1)) in points.iter().enumerate() {
+                composition.get_mut_or_insert_default(Order::new(id as u32).unwrap());
+                segment_buffer.push(GeomId::new(id as u64), [p0, p1]);
+            }
         }
 
-        let lines = builder.fill_cpu_view(|id| {
-            Some(InnerLayer {
-                order: Some(Order::new(id.get() as u32).unwrap()),
-                ..Default::default()
-            })
-        });
+        let (layers, geom_id_to_order) = composition.layers_for_segments();
+
+        let lines = segment_buffer.fill_cpu_view(usize::MAX, usize::MAX, layers, &geom_id_to_order);
 
         let mut rasterizer = Rasterizer::default();
         rasterizer.rasterize(&lines);

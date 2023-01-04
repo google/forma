@@ -162,26 +162,24 @@ impl Renderer {
         };
 
         // `take()` sets the RefCell's content with `Default::default()` which is cheap for Option.
-        let builder = segment_buffer
+        let taken_buffer = segment_buffer
             .take()
             .expect("segment_buffer should not be None");
 
         *segment_buffer = {
-            let lines = {
+            let segment_buffer_view = {
                 duration!("gfx", "SegmentBuffer::fill_cpu_view");
-                builder.fill_cpu_view(|id| {
-                    geom_id_to_order
-                        .get(&id)
-                        .copied()
-                        .flatten()
-                        .and_then(|order| context.layers.get(&order))
-                        .map(|layer| layer.inner.clone())
-                })
+                taken_buffer.fill_cpu_view(
+                    buffer.layout.width(),
+                    buffer.layout.height(),
+                    context.layers,
+                    geom_id_to_order,
+                )
             };
 
             {
                 duration!("gfx", "Rasterizer::rasterize");
-                rasterizer.rasterize(&lines);
+                rasterizer.rasterize(&segment_buffer_view);
             }
             {
                 duration!("gfx", "Rasterizer::sort");
@@ -213,7 +211,7 @@ impl Renderer {
                 );
             }
 
-            Some(lines.recycle())
+            Some(segment_buffer_view.recycle())
         };
 
         if let Some(buffer_layer_cache) = &buffer.layer_cache {

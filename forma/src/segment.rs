@@ -15,16 +15,41 @@
 use std::{cell::Cell, num::NonZeroU64};
 
 use rayon::prelude::*;
+use rustc_hash::FxHashMap;
 
 use crate::{
     composition::InnerLayer,
     consts,
     math::AffineTransform,
     utils::{ExtendTuple10, ExtendTuple3},
-    Path,
+    Layer, Order, Path,
 };
 
 const MIN_LEN: usize = 1_024;
+
+fn transform_point(point: (f32, f32), transform: &AffineTransform) -> (f32, f32) {
+    (
+        transform
+            .ux
+            .mul_add(point.0, transform.vx.mul_add(point.1, transform.tx)),
+        transform
+            .uy
+            .mul_add(point.0, transform.vy.mul_add(point.1, transform.ty)),
+    )
+}
+
+fn skip_line(p0x: f32, p0y: f32, p1x: f32, p1y: f32, width: f32, height: f32) -> bool {
+    // Vertical lines do no create coverage information.
+    let is_vertical = p0y == p1y;
+
+    // We can skip everything to the top, right, and bottom, but not left. Lines to the left might
+    // produce coverage that affects the render target.
+    let is_over = p0y >= height && p1y >= height;
+    let is_to_the_right = p0x >= width && p1x >= width;
+    let is_under = p0y <= 0.0 && p1y <= 0.0;
+
+    is_vertical || is_over || is_to_the_right || is_under
+}
 
 fn integers_between(a: f32, b: f32) -> u32 {
     let min = a.min(b);
@@ -78,6 +103,11 @@ pub struct GeomId(NonZeroU64);
 
 impl GeomId {
     #[cfg(test)]
+    pub fn new(val: u64) -> Self {
+        Self(NonZeroU64::new(val + 1).unwrap())
+    }
+
+    #[cfg(test)]
     pub fn get(self) -> u64 {
         self.0.get() - 1
     }
@@ -100,6 +130,22 @@ impl Default for GeomId {
     #[inline]
     fn default() -> Self {
         Self(NonZeroU64::new(1).unwrap())
+    }
+}
+
+struct Layers<'c> {
+    layers: &'c FxHashMap<Order, Layer>,
+    geom_id_to_order: &'c FxHashMap<GeomId, Option<Order>>,
+}
+
+impl Layers<'_> {
+    pub fn get(&self, id: GeomId) -> Option<&InnerLayer> {
+        self.geom_id_to_order
+            .get(&id)
+            .copied()
+            .flatten()
+            .and_then(|order| self.layers.get(&order))
+            .map(|layer| &layer.inner)
     }
 }
 
@@ -226,10 +272,22 @@ impl SegmentBuffer {
         }
     }
 
-    pub fn fill_cpu_view<F>(mut self, layers: F) -> SegmentBufferView
-    where
-        F: Fn(GeomId) -> Option<InnerLayer> + Send + Sync,
-    {
+    pub fn fill_cpu_view(
+        mut self,
+        width: usize,
+        height: usize,
+        layers: &FxHashMap<Order, Layer>,
+        geom_id_to_order: &FxHashMap<GeomId, Option<Order>>,
+    ) -> SegmentBufferView {
+        let width = width as f32;
+        let height = height as f32;
+        let layers = Layers {
+            layers,
+            geom_id_to_order,
+        };
+
+        let empty_line = Default::default();
+
         let ps_layers = self.view.x.par_windows(2).with_min_len(MIN_LEN).zip_eq(
             self.view.y.par_windows(2).with_min_len(MIN_LEN).zip_eq(
                 self.view.ids[..self.view.ids.len().checked_sub(1).unwrap_or_default()]
@@ -238,8 +296,6 @@ impl SegmentBuffer {
             ),
         );
         let par_iter = ps_layers.map(|(xs, (ys, &id))| {
-            let empty_line = Default::default();
-
             let p0x = xs[0];
             let p0y = ys[0];
             let p1x = xs[1];
@@ -251,7 +307,7 @@ impl SegmentBuffer {
                 return empty_line;
             }
 
-            let layer = match id.and_then(&layers) {
+            let layer = match id.and_then(|id| layers.get(id)) {
                 Some(layer) => layer,
                 None => return empty_line,
             };
@@ -268,17 +324,6 @@ impl SegmentBuffer {
                 None => return empty_line,
             };
 
-            fn transform_point(point: (f32, f32), transform: &AffineTransform) -> (f32, f32) {
-                (
-                    transform
-                        .ux
-                        .mul_add(point.0, transform.vx.mul_add(point.1, transform.tx)),
-                    transform
-                        .uy
-                        .mul_add(point.0, transform.vy.mul_add(point.1, transform.ty)),
-                )
-            }
-
             let transform = layer
                 .affine_transform
                 .as_ref()
@@ -293,7 +338,7 @@ impl SegmentBuffer {
                 (p0x, p0y, p1x, p1y)
             };
 
-            if p0y == p1y {
+            if skip_line(p0x, p0y, p1x, p1y, width, height) {
                 return empty_line;
             }
 
@@ -356,23 +401,22 @@ impl SegmentBuffer {
         self.view
     }
 
-    pub fn fill_gpu_view<F>(mut self, layers: F) -> SegmentBufferView
-    where
-        F: Fn(GeomId) -> Option<InnerLayer> + Send + Sync,
-    {
-        fn transform_point(point: (f32, f32), transform: &AffineTransform) -> (f32, f32) {
-            (
-                transform
-                    .ux
-                    .mul_add(point.0, transform.vx.mul_add(point.1, transform.tx)),
-                transform
-                    .uy
-                    .mul_add(point.0, transform.vy.mul_add(point.1, transform.ty)),
-            )
-        }
+    pub fn fill_gpu_view(
+        mut self,
+        width: usize,
+        height: usize,
+        layers: &FxHashMap<Order, Layer>,
+        geom_id_to_order: &FxHashMap<GeomId, Option<Order>>,
+    ) -> SegmentBufferView {
+        let width = width as f32;
+        let height = height as f32;
+        let layers = Layers {
+            layers,
+            geom_id_to_order,
+        };
 
         if !self.view.ids.is_empty() {
-            let point = match self.view.ids[0].and_then(&layers) {
+            let point = match self.view.ids[0].and_then(|id| layers.get(id)) {
                 None
                 | Some(
                     InnerLayer {
@@ -403,10 +447,10 @@ impl SegmentBuffer {
                 .zip_eq(self.view.ids.par_windows(2).with_min_len(MIN_LEN)),
         );
         let par_iter = ps_layers.map(|(xs, (ys, ids))| {
-            const NONE: u32 = u32::MAX;
             let p0x = xs[0];
             let p0y = ys[0];
-            let (p1x, p1y) = match ids[0].or(ids[1]).and_then(&layers) {
+
+            let (p1x, p1y) = match ids[0].or(ids[1]).and_then(|id| layers.get(id)) {
                 None
                 | Some(
                     InnerLayer {
@@ -424,22 +468,24 @@ impl SegmentBuffer {
                 }) => transform_point((xs[1], ys[1]), &transform.0),
             };
 
-            let layer = match ids[0].and_then(&layers) {
+            let empty_line = (0, [p1x, p1y], u32::MAX);
+
+            let layer = match ids[0].and_then(|id| layers.get(id)) {
                 Some(layer) => layer,
                 // Points at then end of segment chain have to be transformed for the compute shader.
-                None => return (0, [p1x, p1y], NONE),
+                None => return empty_line,
             };
 
             if let InnerLayer {
                 is_enabled: false, ..
             } = layer
             {
-                return (0, [p1x, p1y], NONE);
+                return empty_line;
             }
 
             let order = match layer.order {
                 Some(order) => order.as_u32(),
-                None => return (0, [p1x, p1y], NONE),
+                None => return empty_line,
             };
 
             let transform = layer
@@ -453,10 +499,11 @@ impl SegmentBuffer {
                 (p0x, p0y)
             };
 
-            if p0y == p1y {
-                return (0, [p1x, p1y], NONE);
+            if skip_line(p0x, p0y, p1x, p1y, width, height) {
+                return empty_line;
             }
-            let length = integers_between(p0x, p1x) + integers_between(p0y, p1y) + 1;
+
+            let length = manhattan_segment_length(p0x, p1x, p0y, p1y);
 
             (length, [p1x, p1y], order)
         });

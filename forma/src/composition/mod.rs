@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(test)]
+use std::cell::Ref;
 use std::{cell::RefCell, rc::Rc};
 
 use rustc_hash::FxHashMap;
@@ -379,6 +381,19 @@ impl Composition {
                 .expect("lines_builder should not be None")
                 .retain(|id| geom_id_to_order.contains_key(&id));
         }
+    }
+
+    #[cfg(test)]
+    pub fn layers_for_segments(
+        &self,
+    ) -> (
+        &FxHashMap<Order, Layer>,
+        Ref<FxHashMap<GeomId, Option<Order>>>,
+    ) {
+        (
+            &self.layers,
+            Ref::map(self.shared_state.borrow(), |state| &state.geom_id_to_order),
+        )
     }
 }
 
