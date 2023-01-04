@@ -20,6 +20,7 @@ use svg::{
     parser::Event,
 };
 use svgtypes::{Color, PathParser, PathSegment, StyleParser, Transform};
+use winit::event::VirtualKeyCode;
 
 use crate::{App, Keyboard};
 
@@ -185,6 +186,8 @@ pub struct Svg {
     gradient_builder: Option<(String, GradientBuilder)>,
     gradients: HashMap<String, Gradient>,
     needs_composition: bool,
+    x: f32,
+    y: f32,
 }
 
 impl Svg {
@@ -195,6 +198,8 @@ impl Svg {
             gradient_builder: None,
             gradients: HashMap::new(),
             needs_composition: true,
+            x: 0.0,
+            y: 0.0,
         };
 
         result.open(path);
@@ -871,10 +876,30 @@ impl App for Svg {
 
     fn set_height(&mut self, _height: usize) {}
 
-    fn compose(&mut self, composition: &mut Composition, _: Duration, _: &Keyboard) {
+    fn compose(&mut self, composition: &mut Composition, duration: Duration, keyboard: &Keyboard) {
+        let x_speed = duration.as_millis() as f32;
+        let y_speed = duration.as_millis() as f32;
+        if keyboard.is_key_down(VirtualKeyCode::Left) {
+            self.x -= x_speed;
+            self.needs_composition = true;
+        }
+        if keyboard.is_key_down(VirtualKeyCode::Right) {
+            self.x += x_speed;
+            self.needs_composition = true;
+        }
+
+        if keyboard.is_key_down(VirtualKeyCode::Up) {
+            self.y += y_speed;
+            self.needs_composition = true;
+        }
+        if keyboard.is_key_down(VirtualKeyCode::Down) {
+            self.y -= y_speed;
+            self.needs_composition = true;
+        }
         if !self.needs_composition {
             return;
         }
+        let transform = GeomPresTransform::try_from([1.0, 0.0, 0.0, 1.0, -self.x, self.y]).unwrap();
 
         for (order, (path, fill_rule, fill, blend_mode)) in self.paths.iter().enumerate() {
             let mut layer = composition.create_layer();
@@ -887,7 +912,8 @@ impl App for Svg {
                     ..Default::default()
                 }),
             });
-
+            layer.set_transform(transform);
+            // .set_transform(transform);
             composition.insert(Order::new(order as u32).unwrap(), layer);
         }
 
