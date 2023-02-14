@@ -33,112 +33,6 @@ let COVER_BIT_SIZE = 6u;
 
 let NONE: u32 = 0xffffffffu;
 
-// black-box methods that ensure precise results in the presence of ffast-math.
-
-fn bbAdd(x: f32, y: f32) -> f32 {
-    return select(x, x + y, y != 0.0);
-}
-
-fn bbSub(x: f32, y: f32) -> f32 {
-    return select(x, x - y, y != 0.0);
-}
-
-fn bbMul(x: f32, y: f32) -> f32 {
-    return select(x, x * y, y != 1.0);
-}
-
-fn bbDiv(x: f32, y: f32) -> f32 {
-    return select(x, x / y, y != 1.0);
-}
-
-fn twoSum(x: f32, y: f32) -> vec2<f32> {
-    let r = bbAdd(x, y);
-    let t = bbSub(r, x);
-    let e = bbAdd(bbSub(x, bbSub(r, t)), bbSub(y, t));
-    
-    return vec2(r, e);
-}
-
-fn twoSumQuick(x: f32, y: f32) -> vec2<f32> {
-    let r = bbAdd(x, y);
-    let e = bbSub(y, bbSub(r, x));
-    
-    return vec2(r, e);
-}
-
-fn twoDifference(x: f32, y: f32) -> vec2<f32> {
-    let r = bbSub(x, y);
-    let t = bbSub(r, x);
-    let e = bbSub(bbSub(x,  bbSub(r, t)), bbAdd(y, t));
-
-    return vec2(r, e);
-}
-
-fn twoProduct(x: f32, y: f32) -> vec2<f32> {
-    let r = bbMul(x, y);
-    let e = fma(x, y, -r);
-    
-    return vec2(r, e);
-}
-
-// A "float-float" adaptiation of the double-double arithmetic. Adapted from
-// https://github.com/sukop/doubledouble.
-struct ff64 {
-    hi: f32,
-    lo: f32,
-}
-
-fn ff64F32(val: f32) -> ff64 {
-    return ff64(val, 0.0);
-}
-
-fn add(x: ff64, y: ff64) -> ff64 {
-    var r = twoSum(x.hi, y.hi);
-    r.y = bbAdd(r.y, bbAdd(x.lo, y.lo));
-    r = twoSumQuick(r.x, r.y);
-    
-    return ff64(r.x, r.y);
-}
-
-fn sub(x: ff64, y: ff64) -> ff64 {
-    var r = twoDifference(x.hi, y.hi);
-    r.y = bbAdd(r.y, bbSub(x.lo, y.lo));
-    r = twoSumQuick(r.x, r.y);
-    
-    return ff64(r.x, r.y);
-}
-
-fn mul(x: ff64, y: ff64) -> ff64 {
-    var r = twoProduct(x.hi, y.hi);
-    r.y = bbAdd(r.y, bbAdd(bbMul(x.hi, y.lo), bbMul(x.lo, y.hi)));
-    r = twoSumQuick(r.x, r.y);
-    
-    return ff64(r.x, r.y);
-}
-
-fn div(x: ff64, y: ff64) -> ff64 {
-    let r = bbDiv(x.hi, y.hi);
-    let s = twoProduct(r, y.hi);
-    let e = bbDiv(
-        bbSub(bbAdd(bbSub(bbSub(x.hi, s.x), s.y), x.lo), bbMul(r, y.lo)),
-        y.hi,
-    );
-    let v = twoSumQuick(r, e);
-    
-    return ff64(v.x, v.y);
-}
-
-fn ff64Ceil(val: ff64) -> f32 {
-    let ceilHi = ceil(val.hi);
-    let ceilLo = ceil(val.lo);
-
-    return select(
-        ceilHi + ceilLo,
-        ceilHi,
-        ceilHi > val.hi,
-    );
-}
-
 struct Config {
     lines_len: u32,
     segments_len: u32,
@@ -300,26 +194,55 @@ fn packPixelSegment(
 // sequence 2 such that the next item will be the ith. This results in two
 // indices from each sequence. The final step is to simply pick the smaller one
 // which naturally comes next.
-fn find(i: i32, a_over_a_b: ff64, b_over_a_b: ff64, c_d_over_a_b: ff64, a: f32, b: f32, c: f32, d: f32) -> f32 {
+fn find(
+    i: i32,
+    a_over_a_b: f32,
+    b_over_a_b: f32,
+    c_d_over_a_b: f32,
+    a: f32,
+    b: f32,
+    c: f32,
+    d: f32,
+) -> f32 {
+    let BIAS = 0.0000002;
+
+    let goal_i = i + 1;
     let i = f32(i);
 
-    // Index estimation requires extra bits of information to work correctly for
-    // cases where e.g. a + b would lose information.
     let ja = select(
-        ff64Ceil(sub(mul(b_over_a_b, ff64F32(i)), c_d_over_a_b)),
+        ceil(fma(b_over_a_b, i, -c_d_over_a_b - BIAS)),
         i,
         isInf(b),
     );
     let jb = select(
-        ff64Ceil(add(mul(a_over_a_b, ff64F32(i)), c_d_over_a_b)),
+        ceil(fma(a_over_a_b, i, c_d_over_a_b - BIAS)),
         i,
         isInf(a),
     );
 
-    let guess_a = a * ja + c;
-    let guess_b = b * jb + d;
+    let guess_a = fma(a, ja, c);
+    let guess_b = fma(b, jb, d);
 
-    return min(guess_a, guess_b);
+    var ja = i32(floor(ja));
+    var jb = i32(floor(jb));
+    
+    var result = min(guess_a, guess_b);
+ 
+    if !(ja + jb == goal_i || isInf(a) || isInf(b)) {
+        for (var i = 0; i < 4; i++) {
+            let guess_a = fma(a, f32(ja), c);
+            let guess_b = fma(b, f32(jb), d);
+
+            let a_smaller = i32(guess_a <= guess_b);
+
+            result = select(result, min(guess_a, guess_b), ja + jb == goal_i);
+
+            ja += a_smaller;
+            jb += a_smaller ^ 1;
+        }
+    }
+
+    return result;
 }
 
 fn computePixelSegment(li: u32, pi: u32) -> PixelSegment {
@@ -334,10 +257,10 @@ fn computePixelSegment(li: u32, pi: u32) -> PixelSegment {
     let i0 = i;
     let i1 = i + 1;
 
-    let sum_recip = div(ff64F32(1.0), add(ff64F32(a), ff64F32(b)));
-    let a_over_a_b = mul(ff64F32(a), sum_recip);
-    let b_over_a_b = mul(ff64F32(b), sum_recip);
-    let c_d_over_a_b = mul(sub(ff64F32(c), ff64F32(d)), sum_recip);
+    let sum_recip = 1.0 / (a + b);
+    let a_over_a_b = a * sum_recip;
+    let b_over_a_b = b * sum_recip;
+    let c_d_over_a_b = (c - d) * sum_recip;
 
     let t0 = max(
         find(i0, a_over_a_b, b_over_a_b, c_d_over_a_b, a, b, c, d),
@@ -348,10 +271,10 @@ fn computePixelSegment(li: u32, pi: u32) -> PixelSegment {
         1.0,
     );
 
-    let x0f = t0 * line_.dx + line_.x0;
-    let y0f = t0 * line_.dy + line_.y0;
-    let x1f = t1 * line_.dx + line_.x0;
-    let y1f = t1 * line_.dy + line_.y0;
+    let x0f = fma(t0, line_.dx, line_.x0);
+    let y0f = fma(t0, line_.dy, line_.y0);
+    let x1f = fma(t1, line_.dx, line_.x0);
+    let y1f = fma(t1, line_.dy, line_.y0);
 
     let x0_sub: i32 = roundToI32(x0f);
     let x1_sub: i32 = roundToI32(x1f);

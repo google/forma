@@ -386,7 +386,7 @@ mod tests {
 
         let (layers, geom_id_to_order) = composition.layers_for_segments();
 
-        let gpu_segments = {
+        let mut gpu_segments = {
             let segment_buffer_view =
                 segment_buffer.fill_gpu_view(usize::MAX, usize::MAX, layers, &geom_id_to_order);
             let (segments, segment_buffer_view) = run_rasterizer(segment_buffer_view);
@@ -411,6 +411,8 @@ mod tests {
         };
 
         cpu_segments.sort();
+        gpu_segments.sort();
+
         cpu_segments
             .iter()
             .filter(|seg| is_significant(seg))

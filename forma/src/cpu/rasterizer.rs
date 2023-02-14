@@ -31,25 +31,26 @@ use super::PixelSegment;
 #[allow(clippy::too_many_arguments)]
 fn find(
     i: i32,
-    a_over_a_b: f64,
-    b_over_a_b: f64,
-    c_d_over_a_b: f64,
+    a_over_a_b: f32,
+    b_over_a_b: f32,
+    c_d_over_a_b: f32,
     a: f32,
     b: f32,
     c: f32,
     d: f32,
 ) -> f32 {
+    const BIAS: f32 = 0.000_000_2;
+
+    let goal_i = i + 1;
     let i = i as f32;
 
-    // Index estimation requires extra bits of information to work correctly for
-    // cases where e.g. a + b would lose information.
     let ja = if b.is_finite() {
-        b_over_a_b.mul_add(i as f64, -c_d_over_a_b).ceil() as f32
+        b_over_a_b.mul_add(i, -c_d_over_a_b - BIAS).ceil()
     } else {
         i
     };
     let jb = if a.is_finite() {
-        a_over_a_b.mul_add(i as f64, c_d_over_a_b).ceil() as f32
+        a_over_a_b.mul_add(i, c_d_over_a_b - BIAS).ceil()
     } else {
         i
     };
@@ -57,17 +58,56 @@ fn find(
     let guess_a = a.mul_add(ja, c);
     let guess_b = b.mul_add(jb, d);
 
-    guess_a.min(guess_b)
+    let mut ja: i32 = unsafe { ja.floor().to_int_unchecked() };
+    let mut jb: i32 = unsafe { jb.floor().to_int_unchecked() };
+
+    let mut result = guess_a.min(guess_b);
+
+    if !(ja + jb == goal_i || a.is_infinite() || b.is_infinite()) {
+        for _ in 0..4 {
+            let guess_a = a.mul_add(ja as f32, c);
+            let guess_b = b.mul_add(jb as f32, d);
+
+            let a_smaller = i32::from(guess_a <= guess_b);
+
+            if ja + jb == goal_i {
+                result = guess_a.min(guess_b);
+            }
+
+            ja += a_smaller;
+            jb += a_smaller ^ 1;
+        }
+    }
+
+    // if ja + jb == goal_i || a.is_infinite() || b.is_infinite() {
+    //     return guess_a.min(guess_b);
+    // }
+
+    // let mut result = 0.0;
+
+    // while ja + jb <= goal_i {
+    //     let guess_a = a.mul_add(ja as f32, c);
+    //     let guess_b = b.mul_add(jb as f32, d);
+
+    //     let a_smaller = i32::from(guess_a <= guess_b);
+
+    //     result = guess_a.min(guess_b);
+
+    //     ja += a_smaller;
+    //     jb += a_smaller ^ 1;
+    // }
+
+    result
 }
 
 fn get_ith_pixel_segment_params(i: u32, a: f32, b: f32, c: f32, d: f32) -> [f32; 2] {
     // This ensures that for `i = 0` the first parameter will always be `0.0`.
     let i = i as i32 - i32::from(c != 0.0) - i32::from(d != 0.0);
 
-    let sum_recip = (a as f64 + b as f64).recip();
-    let a_over_a_b = a as f64 * sum_recip;
-    let b_over_a_b = b as f64 * sum_recip;
-    let c_d_over_a_b = (c as f64 - d as f64) * sum_recip;
+    let sum_recip = (a + b).recip();
+    let a_over_a_b = a * sum_recip;
+    let b_over_a_b = b * sum_recip;
+    let c_d_over_a_b = (c - d) * sum_recip;
 
     let [t0, t1] = [i, i + 1].map(|i| find(i, a_over_a_b, b_over_a_b, c_d_over_a_b, a, b, c, d));
 
@@ -203,15 +243,15 @@ mod tests {
 
     #[test]
     fn find_first_7() {
-        let a = 2.0;
+        let a = 2.0f32;
         let b = 3.0;
         let c = 0.2;
         let d = 0.1;
 
-        let sum_recip = (a as f64 + b as f64).recip();
-        let a_over_a_b = a as f64 * sum_recip;
-        let b_over_a_b = b as f64 * sum_recip;
-        let c_d_over_a_b = (c as f64 - d as f64) * sum_recip;
+        let sum_recip = (a + b).recip();
+        let a_over_a_b = a * sum_recip;
+        let b_over_a_b = b * sum_recip;
+        let c_d_over_a_b = (c - d) * sum_recip;
 
         assert_eq!(
             (0..7)
@@ -224,15 +264,15 @@ mod tests {
 
     #[test]
     fn find_ab_large_ratio() {
-        let a = 16_777_216.0;
+        let a = 16_777_216.0f32;
         let b = 0.000_1;
         let c = 10.0;
         let d = 0.000_01;
 
-        let sum_recip = (a as f64 + b as f64).recip();
-        let a_over_a_b = a as f64 * sum_recip;
-        let b_over_a_b = b as f64 * sum_recip;
-        let c_d_over_a_b = (c as f64 - d as f64) * sum_recip;
+        let sum_recip = (a + b).recip();
+        let a_over_a_b = a * sum_recip;
+        let b_over_a_b = b * sum_recip;
+        let c_d_over_a_b = (c - d) * sum_recip;
 
         assert_eq!(
             (2..4)

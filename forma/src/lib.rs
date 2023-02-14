@@ -111,7 +111,27 @@ macro_rules! duration {
 
 #[cfg(not(target_os = "fuchsia"))]
 macro_rules! duration {
-    ($category:expr, $name:expr $(, $key:expr => $val:expr)*) => {};
+    ($category:expr, $name:expr $(, $key:expr => $val:expr)*) => {
+        struct Stamp {
+            inst: ::std::time::Instant,
+            name: &'static str,
+        }
+
+        impl Drop for Stamp {
+            fn drop(&mut self) {
+                println!(
+                    "{}: {:.2}ms",
+                    self.name,
+                    self.inst.elapsed().as_secs_f64() * 1000.0
+                );
+            }
+        }
+
+        let _stamp = Stamp {
+            name: $name,
+            inst: ::std::time::Instant::now(),
+        };
+    };
 }
 
 mod composition;

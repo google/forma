@@ -21,7 +21,7 @@ use crate::{
     composition::InnerLayer,
     consts,
     math::AffineTransform,
-    utils::{ExtendTuple10, ExtendTuple3},
+    utils::{ExtendTuple10, ExtendTuple3, RoundToBit},
     Layer, Order, Path,
 };
 
@@ -296,10 +296,10 @@ impl SegmentBuffer {
             ),
         );
         let par_iter = ps_layers.map(|(xs, (ys, &id))| {
-            let p0x = xs[0];
-            let p0y = ys[0];
-            let p1x = xs[1];
-            let p1y = ys[1];
+            let mut p0x = xs[0];
+            let mut p0y = ys[0];
+            let mut p1x = xs[1];
+            let mut p1y = ys[1];
 
             if id.is_none() {
                 // Returns a length of 0 so that the line segments between two
@@ -329,14 +329,15 @@ impl SegmentBuffer {
                 .as_ref()
                 .map(|transform| &transform.0);
 
-            let (p0x, p0y, p1x, p1y) = if let Some(transform) = transform {
-                let (p0x, p0y) = transform_point((p0x, p0y), transform);
-                let (p1x, p1y) = transform_point((p1x, p1y), transform);
+            if let Some(transform) = transform {
+                (p0x, p0y) = transform_point((p0x, p0y), transform);
+                (p1x, p1y) = transform_point((p1x, p1y), transform);
+            }
 
-                (p0x, p0y, p1x, p1y)
-            } else {
-                (p0x, p0y, p1x, p1y)
-            };
+            p0x = p0x.round_to_bit::<4>();
+            p0y = p0y.round_to_bit::<4>();
+            p1x = p1x.round_to_bit::<4>();
+            p1y = p1y.round_to_bit::<4>();
 
             if skip_line(p0x, p0y, p1x, p1y, width, height) {
                 return empty_line;
@@ -416,7 +417,7 @@ impl SegmentBuffer {
         };
 
         if !self.view.ids.is_empty() {
-            let point = match self.view.ids[0].and_then(|id| layers.get(id)) {
+            let mut point = match self.view.ids[0].and_then(|id| layers.get(id)) {
                 None
                 | Some(
                     InnerLayer {
@@ -436,6 +437,10 @@ impl SegmentBuffer {
                     [x, y]
                 }
             };
+
+            point[0] = point[0].round_to_bit::<4>();
+            point[1] = point[1].round_to_bit::<4>();
+
             self.view.points.push(point);
         }
 
@@ -447,10 +452,10 @@ impl SegmentBuffer {
                 .zip_eq(self.view.ids.par_windows(2).with_min_len(MIN_LEN)),
         );
         let par_iter = ps_layers.map(|(xs, (ys, ids))| {
-            let p0x = xs[0];
-            let p0y = ys[0];
+            let mut p0x = xs[0];
+            let mut p0y = ys[0];
 
-            let (p1x, p1y) = match ids[0].or(ids[1]).and_then(|id| layers.get(id)) {
+            let (mut p1x, mut p1y) = match ids[0].or(ids[1]).and_then(|id| layers.get(id)) {
                 None
                 | Some(
                     InnerLayer {
@@ -467,6 +472,9 @@ impl SegmentBuffer {
                     ..
                 }) => transform_point((xs[1], ys[1]), &transform.0),
             };
+
+            p1x = p1x.round_to_bit::<4>();
+            p1y = p1y.round_to_bit::<4>();
 
             let empty_line = (0, [p1x, p1y], u32::MAX);
 
@@ -493,11 +501,14 @@ impl SegmentBuffer {
                 .as_ref()
                 .map(|transform| &transform.0);
 
-            let (p0x, p0y) = if let Some(transform) = transform {
-                transform_point((p0x, p0y), transform)
-            } else {
-                (p0x, p0y)
-            };
+            if let Some(transform) = transform {
+                (p0x, p0y) = transform_point((p0x, p0y), transform)
+            }
+
+            p0x = p0x.round_to_bit::<4>();
+            p0y = p0y.round_to_bit::<4>();
+            p1x = p1x.round_to_bit::<4>();
+            p1y = p1y.round_to_bit::<4>();
 
             if skip_line(p0x, p0y, p1x, p1y, width, height) {
                 return empty_line;

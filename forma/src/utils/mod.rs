@@ -43,6 +43,19 @@ impl CanonBits for f32 {
     }
 }
 
+pub trait RoundToBit {
+    fn round_to_bit<const B: usize>(self) -> f32;
+}
+
+impl RoundToBit for f32 {
+    fn round_to_bit<const B: usize>(self) -> f32 {
+        let shift_left: f32 = (B as f32).exp2();
+        let shift_right: f32 = shift_left.recip();
+
+        self.mul_add(shift_left, 0.5).floor() * shift_right
+    }
+}
+
 pub trait DivCeil {
     fn div_ceil_(self, other: Self) -> Self;
 }
@@ -80,5 +93,34 @@ mod tests {
         assert_eq!(neg_zero, pos_zero);
         assert_ne!(neg_zero.to_bits(), pos_zero.to_bits());
         assert_eq!(neg_zero.to_canon_bits(), pos_zero.to_canon_bits());
+    }
+
+    #[test]
+    fn round_to_bit_subnormal() {
+        let val = 0.000_000_000_000_000_123_456;
+
+        let rounded = val.round_to_bit::<64>();
+
+        assert!(0.000_000_000_000_000_123_4 < rounded);
+        assert!(rounded < val);
+    }
+
+    #[test]
+    fn round_to_bit_large_number() {
+        let val = 123.456;
+
+        let rounded = val.round_to_bit::<4>();
+
+        assert!(123.4 < rounded);
+        assert!(rounded < val);
+    }
+
+    #[test]
+    fn round_to_bit_large_number_outside_of_range() {
+        let val = 123.456;
+
+        let rounded = val.round_to_bit::<20>();
+
+        assert_eq!(rounded, val);
     }
 }
