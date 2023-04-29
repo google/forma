@@ -24,6 +24,10 @@ Add the following to your `Cargo.toml` dependencies:
 forma = { version = "0.1.0", package = "forma-render" }
 ```
 
+### System dependencies
+
+There are some system dependencies that won't be downloaded automatically by Cargo. To build forma, you will need a C toolchain (such as `alpine-sdk` on Alpine Linux, or `build-essential` on Debian), and to run the demos, you'll additionally need to install [CMake](https://repology.org/project/cmake), [fontconfig](https://repology.org/project/fontconfig) and [freetype](https://repology.org/project/freetype).
+
 ## 4-stage Pipeline
 
 | 1. Curve flattening | 2. Line segment rasterization |      3. Sorting       |           4. Painting            |
